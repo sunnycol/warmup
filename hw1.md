@@ -1,5 +1,5 @@
-Programming Question-1
-Question 1
+# Programming Question-1
+## Question 1
 Download the text file here. (Right click and save link as)
 
 This file contains all of the 100,000 integers between 1 and 100,000 (inclusive) in some random order, with no integer repeated.
