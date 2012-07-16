@@ -3,68 +3,99 @@ __author__ = "Stephen Li"
 __email__ = "stephen.liziyun at gmail dot com"
 
 import sys
+import operator
+import threading
 
 class AdjacencyListGraph(object):
-    """Adjacency list implementation based on the slides of
-    Social Network Analysis in Python on Europython 2012"""
+    """Adjacency list implementation of directed graph. """
 
     def __init__(self):
         self.nodes = []
         self.edges = {}
-        self.num_edges = 0
-
-    def add_node(self, node):
-        if node not in self.nodes:
-            self.nodes.append(node)
-            self.edges[node] = []
-        else:   # do nothing if node already exists
-            pass
+        self.clock = 0
+        self.visited = {}
+        self.postvisit = {}
+        self.leaders = {}
+        self.current_leader = 0
 
     def add_edge(self, u, v):
-        """Add nodes and edges. Note that no duplicated edge
-        is allowed in this method"""
+        """Add nodes and edges."""
         if u not in self.edges:
             self.edges[u] = []
             self.nodes.append(u)
+            self.visited[u] = False
+            self.postvisit[u] = 0
+            self.leaders[u] = 0
         if v not in self.edges:
             self.edges[v] = []
             self.nodes.append(v)
-        if (u not in set(self.edges[v])) and (v not in set(self.edges[u])):
-            self.edges[v].append(u)
+            self.visited[v] = False
+            self.postvisit[v] = 0
+            self.leaders[v] = 0
+        # Directed edge, no duplicated
+        if (v not in set(self.edges[u])):
             self.edges[u].append(v)
-            self.num_edges += 1
 
-    # def del_edge(self, u, v):
-    #     if u not in self.edges.keys():
-    #         print '%s is not in edge dict!' % u
-    #         return
-    #     if v not in self.edges.keys():
-    #         print '%s is not in edge dict!' % v
-    #         return
-    #     if (self.edges[u].count(v) > 0) and (self.edges[v].count(u) > 0):
-    #         self.edges[u].remove(v)
-    #         self.edges[v].remove(u)
-    #         # print 'del_edge here!'
-    #         self.num_edges -= 1
-    #     else:
-    #         print 'unmatched edge between node %s and %s' % (u, v)
+def DFS(graph):
+    # Decending ordering according to leaving time
+    decending_order = sorted(graph.postvisit.iteritems(), key = operator.itemgetter(1))
+    decending_order.reverse()
+    for node, order in decending_order:
+        if not graph.visited[node]:
+            graph.current_leader = node
+            graph = Explore(graph, node)
+    return graph
 
-    def merge_node(self, u, v):
-        """ Assume u and v to be distinct. """
-        # merge two edge lists
-        self.edges[u] = self.edges[u] + self.edges[v]
-        # empty v
-        self.edges[v] = []
-        # remove v in node list
-        self.nodes.remove(v)
-        # remove self-loop
-        while (v in self.edges[u]) and (u in self.edges[u]):
-            self.edges[u].remove(v)
-            self.edges[u].remove(u)
-            # print 'merge_node here!'
-            self.num_edges -= 1
-        # replace v with u for all nodes
-        for key in self.edges.keys():
-            while v in self.edges[key]:
-                self.edges[key].remove(v)
-                self.edges[key].append(u)
+def Explore(graph, node):
+    graph.visited[node] = True
+    graph.leaders[node] = graph.current_leader
+    for dest in graph.edges[node]:
+        if not graph.visited[dest]:
+            graph = Explore(graph, dest)
+    graph.postvisit[node] = graph.clock
+    graph.clock = graph.clock + 1
+    return graph
+
+def main():
+    args = sys.argv[1:]
+    if not args:
+        print 'usage: inputfile'
+        sys.exit(1)
+
+    graph = AdjacencyListGraph()
+    rev_graph = AdjacencyListGraph()
+    # Using context manager to load file line by line, this will automatically close the file as well
+    with open(args[0]) as fileobject:
+        for line in fileobject:
+            line = line.strip().split()
+            graph.add_edge(int(line[0]), int(line[1]))
+            rev_graph.add_edge(int(line[1]), int(line[0]))
+    # Postprocessing graph
+    for node in graph.nodes:
+        graph.visited[node] = False
+        graph.postvisit[node] = 0
+    for node in rev_graph.nodes:
+        rev_graph.visited[node] = False
+        rev_graph.postvisit[node] = 0
+    # Kosaraju's Two-pass algorithm
+    rev_graph = DFS(rev_graph)  # first run
+    graph.postvisit = rev_graph.postvisit
+    graph = DFS(graph)
+    scc = {}
+    for node, leader in graph.leaders.items():
+        if leader in scc:
+            scc[leader] = scc[leader] + 1
+        else:
+            scc[leader] = 1
+    scc_list = (sorted(scc.iteritems(), key = operator.itemgetter(1)))
+    scc_list.reverse()
+    print scc_list
+
+if __name__ == '__main__':
+    threading.stack_size(67108864) # 64MB stack
+    sys.setrecursionlimit(2 ** 20)  # approx 1 million recursions
+    thread = threading.Thread(target = main) # instantiate thread object
+    thread.start() # run program at target
+    # main()
+
+
